@@ -88,7 +88,7 @@ function serveSignInForm(req, res) {
   `;
   res.writeHead(200, {'Content-Type': 'text/html'});
   res.end(html);
-}
+
 
 function processSignIn(req, res) {
   // Parse the POST data
@@ -118,7 +118,7 @@ if (username === getUsername(req) || password !== PASSWORD) {
     res.writeHead(500, {'Content-Type': 'text/plain'});
     res.end('Internal Server Error');
     return;
-    }
+    }   
     // Serve the file list
 const html = `
 <!DOCTYPE html>
@@ -136,6 +136,7 @@ const html = `
 `;
 res.writeHead(200, {'Content-Type': 'text/html'});
 res.end(html);
-});
+    });
 }
 });
+}
