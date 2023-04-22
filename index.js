@@ -20,57 +20,132 @@ function getUsername(req) {
 }
 
 // Handler for the file list page
+// function handleListFiles(req, res) {
+//   if (req.method !== 'GET') {
+//     res.writeHead(405, {'Content-Type': 'text/plain'});
+//     res.end('Method Not Allowed');
+//     return;
+//   }
+
+//   // Get the username from the session cookie
+//   const username = getUsername(req);
+
+//   // If the user is not signed in, redirect to the sign-in page
+//   if (!username) {
+//     res.writeHead(302, {'Location': '/signin.html'});
+//     res.end();
+//     return;
+//   }
+
+//   // Get a list of files for the signed-in user
+//   fs.readdir(ROOT_DIR, (err, files) => {
+//     if (err) {
+//       console.error(`Error reading directory: ${err}`);
+//       res.writeHead(500, {'Content-Type': 'text/plain'});
+//       res.end('Internal Server Error');
+//     } else {
+//       // Filter the list of files to include only those that belong to the signed-in user
+//       const userFiles = files.filter((file) => {
+//         return fs.statSync(path.join(ROOT_DIR, file)).isFile() && file.startsWith(username);
+//       });
+
+//       // Generate an HTML page with links to the user's files
+//       const html = `
+//         <!DOCTYPE html>
+//         <html>
+//           <head>
+//             <meta charset="utf-8">
+//             <title>File List</title>
+//           </head>
+//           <body>
+//             <h1>File List</h1>
+//             <p>Signed in as ${username} <a href="/signout">Sign out</a></p>
+//             <ul>
+//               ${userFiles.map((file) => `<li><a href="/${file}">${file}</a></li>`).join('\n')}
+//             </ul>
+//           </body>
+//         </html>
+//       `;
+//       res.writeHead(200, {'Content-Type': 'text/html'});
+//       res.end(html);
+//     }
+//   });
+// }
+
 function handleListFiles(req, res) {
-  if (req.method !== 'GET') {
-    res.writeHead(405, {'Content-Type': 'text/plain'});
-    res.end('Method Not Allowed');
-    return;
-  }
-
-  // Get the username from the session cookie
-  const username = getUsername(req);
-
-  // If the user is not signed in, redirect to the sign-in page
-  if (!username) {
+  const sessionID = getSessionID(req);
+  if (!sessionID) {
+    // Redirect to the sign-in page if the user is not signed in
     res.writeHead(302, {'Location': '/signin.html'});
     res.end();
     return;
   }
+  
+  // Get the username associated with the session ID
+  const username = sessions[sessionID];
 
-  // Get a list of files for the signed-in user
-  fs.readdir(ROOT_DIR, (err, files) => {
+  // Check if the user has a directory in the files folder
+  const userDir = path.join(FILES_DIR, username);
+  fs.access(userDir, (err) => {
     if (err) {
-      console.error(`Error reading directory: ${err}`);
-      res.writeHead(500, {'Content-Type': 'text/plain'});
-      res.end('Internal Server Error');
-    } else {
-      // Filter the list of files to include only those that belong to the signed-in user
-      const userFiles = files.filter((file) => {
-        return fs.statSync(path.join(ROOT_DIR, file)).isFile() && file.startsWith(username);
+      // If the user doesn't have a directory yet, create one
+      fs.mkdir(userDir, (err) => {
+        if (err) {
+          console.error(`Error creating user directory: ${err}`);
+          res.writeHead(500, {'Content-Type': 'text/plain'});
+          res.end('Internal Server Error');
+        } else {
+          // Render the file list with an empty array of files
+          renderFileList(res, []);
+        }
       });
-
-      // Generate an HTML page with links to the user's files
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>File List</title>
-          </head>
-          <body>
-            <h1>File List</h1>
-            <p>Signed in as ${username} <a href="/signout">Sign out</a></p>
-            <ul>
-              ${userFiles.map((file) => `<li><a href="/${file}">${file}</a></li>`).join('\n')}
-            </ul>
-          </body>
-        </html>
-      `;
-      res.writeHead(200, {'Content-Type': 'text/html'});
-      res.end(html);
+    } else {
+      // If the user already has a directory, read the files in it
+      fs.readdir(userDir, (err, files) => {
+        if (err) {
+          console.error(`Error reading user directory: ${err}`);
+          res.writeHead(500, {'Content-Type': 'text/plain'});
+          res.end('Internal Server Error');
+        } else {
+          // Render the file list with the array of files
+          renderFileList(res, files);
+        }
+      });
     }
   });
+
+  // Handle file uploads
+  if (req.url === '/' && req.method === 'POST') {
+    const form = new formidable.IncomingForm();
+
+    form.parse(req, (err, fields, files) => {
+      if (err) {
+        console.error(`Error parsing form: ${err}`);
+        res.writeHead(500, {'Content-Type': 'text/plain'});
+        res.end('Internal Server Error');
+      } else {
+        const filePath = files.upload.path;
+        const fileName = files.upload.name;
+
+        // Move the uploaded file to the user's directory
+        const userDir = path.join(FILES_DIR, username);
+        const newFilePath = path.join(userDir, fileName);
+        fs.rename(filePath, newFilePath, (err) => {
+          if (err) {
+            console.error(`Error moving file: ${err}`);
+            res.writeHead(500, {'Content-Type': 'text/plain'});
+            res.end('Internal Server Error');
+          } else {
+            // Redirect back to the file list after successful upload
+            res.writeHead(302, {'Location': '/'});
+            res.end();
+          }
+        });
+      }
+    });
+  }
 }
+
 
 // Handler for the sign-in page
 function handleSignIn(req, res) {
