@@ -81,6 +81,8 @@ const server = http.createServer((req, res) => {
 function getContentType(filepath) {
   const extname = path.extname(filepath);
   switch (extname) {
+    case '.html':
+      return 'text/html';
     case '.js':
       return 'text/javascript';
     case '.css':
