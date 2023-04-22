@@ -1,0 +1,23 @@
+{
+  "name": "file-server",
+  "version": "1.0.0",
+  "description": "Simple node file server",
+  "main": "index.js",
+  "scripts": {
+    "test": "node ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Awashcard0/file-server.git"
+  },
+  "keywords": [
+    "file",
+    "server"
+  ],
+  "author": "Awashcard0",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Awashcard0/file-server/issues"
+  },
+  "homepage": "https://github.com/Awashcard0/file-server#readme"
+}
