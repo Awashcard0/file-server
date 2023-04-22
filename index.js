@@ -233,6 +233,20 @@ function handleSignIn(req, res) {
       }
       });
       
+      function getSessionID(req) {
+        const cookies = req.headers.cookie;
+        if (cookies) {
+          const cookieItems = cookies.split(';');
+          for (let i = 0; i < cookieItems.length; i++) {
+            const cookie = cookieItems[i].trim();
+            if (cookie.startsWith('sessionId=')) {
+              return cookie.slice(10);
+            }
+          }
+        }
+        return null;
+      }      
+
       // Start the server
       server.listen(PORT, () => {
       console.log(`Server listening on port ${PORT}`);
