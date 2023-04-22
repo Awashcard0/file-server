@@ -1,141 +1,164 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const qs = require('querystring'); // We need this package to parse the POST data
+const qs = require('querystring');
 
 const PORT = 3000;
-const PASSWORD = 'mysecretpassword'; // Change this to your desired password
+const ROOT_DIR = path.resolve(__dirname, 'public');
+const PASSWORD = 'mypassword';
 
-// Create a server
-const server = http.createServer((req, res) => {
-  // If the user visits the root URL and is not signed in, show the sign-in form
-  if (req.url === '/' && !isSignedIn(req)) {
-    serveSignInForm(req, res);
-  }
-  // If the user is signed in and visits the root URL, show the list of files
-  else if (req.url === '/' && isSignedIn(req)) {
-    serveFileList(req, res);
-  }
-  // If the user submits the sign-in form, process the data and redirect to the root URL
-  else if (req.url === '/signin' && req.method === 'POST') {
-    processSignIn(req, res);
-  }
-  // If the user requests a file that exists in the user's directory, serve that file
-  else if (isSignedIn(req)) {
-    const filePath = path.join(__dirname, 'public', getUsername(req), req.url);
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
-        res.writeHead(404, {'Content-Type': 'text/plain'});
-        res.end('File not found');
-        return;
-      }
-
-      res.writeHead(200);
-      res.end(data);
-    });
-  }
-  // Otherwise, show a 404 error page
-  else {
-    res.writeHead(404, {'Content-Type': 'text/plain'});
-    res.end('404 Not Found');
-  }
-});
-
-// Start the server
-server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
-
-// Helper functions
-
-function isSignedIn(req) {
-  // Check if the user has a valid session cookie
-  return req.headers.cookie && req.headers.cookie.includes('session=');
-}
-
+// Helper function to get the username from the session cookie
 function getUsername(req) {
-  // Get the username from the session cookie
-  const cookie = req.headers.cookie.split(';').find(c => c.trim().startsWith('session='));
-  const username = cookie ? cookie.trim().substring(8) : '';
-  return username;
+  const cookie = req.headers.cookie;
+  if (cookie) {
+    const match = cookie.match(/session=([^;]+)/);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
 }
 
-function serveSignInForm(req, res) {
-  // Serve the sign-in form
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Node.js File Server</title>
-    </head>
-    <body>
-      <h1>Sign in to access your files</h1>
-      <form method="POST" action="/signin">
-        <label>
-          Username:
-          <input type="text" name="username" required>
-        </label>
-        <br>
-        <label>
-          Password:
-          <input type="password" name="password" required>
-        </label>
-        <br>
-        <button type="submit">Sign In</button>
-      </form>
-    </body>
-    </html>
-  `;
-  res.writeHead(200, {'Content-Type': 'text/html'});
-  res.end(html);
-
-
-req.on('end', () => {
-const data = qs.parse(body);
-const {username, password} = data;
-// Check if the username and password are correct
-if (username === getUsername(req) || password !== PASSWORD) {
-    res.writeHead(401, {'Content-Type': 'text/plain'});
-    res.end('Incorrect username or password');
-  } else {
-    // Set a session cookie with the username
-    res.writeHead(302, {'Set-Cookie': `session=${username}`, 'Location': '/'});
-    res.end();
-  }
-  function serveFileList(req, res) {
-    // Get the list of files in the user's directory
-    const userDir = path.join(__dirname, 'public', getUsername(req));
-    fs.readdir(userDir, (err, files) => {
-    if (err) {
-    res.writeHead(500, {'Content-Type': 'text/plain'});
-    res.end('Internal Server Error');
+// Handler for the file list page
+function handleListFiles(req, res) {
+  if (req.method !== 'GET') {
+    res.writeHead(405, {'Content-Type': 'text/plain'});
+    res.end('Method Not Allowed');
     return;
-    }   
-    // Serve the file list
-const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Node.js File Server</title>
-</head>
-<body>
-  <h1>Files for user: ${getUsername(req)}</h1>
-  <ul>
-    ${files.map(file => `<li><a href="${file}">${file}</a></li>`).join('')}
-  </ul>
-</body>
-</html>
-`;
-res.writeHead(200, {'Content-Type': 'text/html'});
-res.end(html);
-    });
-}
-});
-}
-function processSignIn(req, res) {
-    // Parse the POST data
-    let body = '';
-    req.on('data', chunk => {
-      body += chunk.toString();
-  });
   }
+
+  // Get the username from the session cookie
+  const username = getUsername(req);
+
+  // If the user is not signed in, redirect to the sign-in page
+  if (!username) {
+    res.writeHead(302, {'Location': '/signin.html'});
+    res.end();
+    return;
+  }
+
+  // Get a list of files for the signed-in user
+  fs.readdir(ROOT_DIR, (err, files) => {
+    if (err) {
+      console.error(`Error reading directory: ${err}`);
+      res.writeHead(500, {'Content-Type': 'text/plain'});
+      res.end('Internal Server Error');
+    } else {
+      // Filter the list of files to include only those that belong to the signed-in user
+      const userFiles = files.filter((file) => {
+        return fs.statSync(path.join(ROOT_DIR, file)).isFile() && file.startsWith(username);
+      });
+
+      // Generate an HTML page with links to the user's files
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>File List</title>
+          </head>
+          <body>
+            <h1>File List</h1>
+            <p>Signed in as ${username} <a href="/signout">Sign out</a></p>
+            <ul>
+              ${userFiles.map((file) => `<li><a href="/${file}">${file}</a></li>`).join('\n')}
+            </ul>
+          </body>
+        </html>
+      `;
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.end(html);
+    }
+  });
+}
+
+// Handler for the sign-in page
+function handleSignIn(req, res) {
+  if (req.method !== 'POST') {
+    res.writeHead(405, {'Content-Type': 'text/plain'});
+    res.end('Method Not Allowed');
+    return;
+  }
+
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk.toString();
+  });
+
+  req.on('end', () => {
+    try {
+      const data = qs.parse(body);
+      const {username, password} = data;
+
+      // Check if the username and password are correct
+      if (username === getUsername(req) || password !== PASSWORD) {
+        res.writeHead(401, {'Content-Type': 'text/plain'});
+        res.end('Incorrect username or password');
+      } else {
+        // Set a session cookie with the username
+        res.writeHead(302, {'Set-Cookie': `session=${username}`, 'Location': '/'});
+        res.end();
+      }
+    } catch (err) {
+      console.error(`Error parsing request body: ${err}`);
+      res.writeHead(400, {'Content-Type': 'text/plain'});
+      res.end('Bad Request');
+      }
+      });
+      }
+      
+      // Handler for the sign-out page
+      function handleSignOut(req, res) {
+      // Clear the session cookie and redirect to the sign-in page
+      res.writeHead(302, {'Set-Cookie': 'session=; Max-Age=0', 'Location': '/signin.html'});
+      res.end();
+      }
+      
+      // Handler for serving static files
+      function handleStaticFile(req, res) {
+      const filePath = path.join(ROOT_DIR, req.url.slice(1));
+      fs.readFile(filePath, (err, data) => {
+      if (err) {
+      console.error(`Error reading file: ${err}`);
+      res.writeHead(404, {'Content-Type': 'text/plain'});
+      res.end('Not Found');
+      } else {
+      res.writeHead(200, {'Content-Type': getMimeType(filePath)});
+      res.end(data);
+      }
+      });
+      }
+      
+      // Helper function to get the MIME type of a file based on its extension
+      function getMimeType(filePath) {
+      const extname = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+      '.html': 'text/html',
+      '.js': 'text/javascript',
+      '.css': 'text/css',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon'
+      };
+      return mimeTypes[extname] || 'application/octet-stream';
+      }
+      
+      // Create the HTTP server
+      const server = http.createServer((req, res) => {
+      if (req.url === '/signin' && req.method === 'POST') {
+      handleSignIn(req, res);
+      } else if (req.url === '/signout' && req.method === 'GET') {
+      handleSignOut(req, res);
+      } else if (req.url === '/') {
+      handleListFiles(req, res);
+      } else {
+      handleStaticFile(req, res);
+      }
+      });
+      
+      // Start the server
+      server.listen(PORT, () => {
+      console.log(`Server listening on port ${PORT}`);
+      });
