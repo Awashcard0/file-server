@@ -90,14 +90,6 @@ function serveSignInForm(req, res) {
   res.end(html);
 
 
-function processSignIn(req, res) {
-  // Parse the POST data
-  let body = '';
-  req.on('data', chunk => {
-    body += chunk.toString();
-});
-}
-
 req.on('end', () => {
 const data = qs.parse(body);
 const {username, password} = data;
@@ -140,3 +132,10 @@ res.end(html);
 }
 });
 }
+function processSignIn(req, res) {
+    // Parse the POST data
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+  });
+  }
