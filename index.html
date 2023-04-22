@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>File Server</title>
+</head>
+<body>
+  <h1>File Server</h1>
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="filetoupload"><br>
+    <input type="submit" value="Upload">
+  </form>
+<h2>Files</h2>
+<ul>
+  <% files.forEach(function(file) { %>
+    <li><a href="<%= file %>"><%= file %></a></li>
+  <% }); %>
+</ul>
+</body>
+</html>
