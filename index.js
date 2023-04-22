@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const formidable = require('formidable');
+const ejs = require('ejs');
 
 const server = http.createServer((req, res) => {
   // Handle file uploads
@@ -46,18 +47,25 @@ const server = http.createServer((req, res) => {
             res.end('Internal server error');
             return;
           }
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.write('<ul>');
-          files.forEach((file) => {
-            res.write(`<li><a href="${path.join(url, file)}">${file}</a></li>`);
+          const data = {
+            files: files,
+          };
+          ejs.renderFile(path.join(__dirname, 'index.ejs'), data, (err, html) => {
+            if (err) {
+              console.error(err);
+              res.statusCode = 500;
+              res.end('Internal server error');
+              return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(html);
           });
-          res.write('</ul>');
-          res.end();
         });
       } else {
         const stream = fs.createReadStream(filepath);
         stream.on('open', () => {
-          res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+          const contentType = getContentType(filepath);
+          res.writeHead(200, { 'Content-Type': contentType });
           stream.pipe(res);
         });
         stream.on('error', (err) => {
@@ -69,6 +77,26 @@ const server = http.createServer((req, res) => {
     });
   }
 });
+
+function getContentType(filepath) {
+  const extname = path.extname(filepath);
+  switch (extname) {
+    case '.js':
+      return 'text/javascript';
+    case '.css':
+      return 'text/css';
+    case '.json':
+      return 'application/json';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+      return 'image/jpg';
+    case '.wav':
+      return 'audio/wav';
+    default:
+      return 'application/octet-stream';
+  }
+}
 
 server.listen(3000, () => {
   console.log('Server running at http://localhost:3000/');
