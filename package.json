@@ -4,7 +4,7 @@
   "description": "Simple node file server",
   "main": "index.js",
   "scripts": {
-    "test": "node ."
+    "start": "node ."
   },
   "repository": {
     "type": "git",

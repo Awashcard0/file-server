@@ -5,7 +5,7 @@ const url = require('url');
 const formidable = require('formidable');
 
 // Define the username and password to access the server
-const PORT = 3000
+const PORT = process.env.PORT || 8080
 const username = "admin";
 const password = "password";
 
