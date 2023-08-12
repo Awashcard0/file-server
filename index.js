@@ -3,11 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const formidable = require('formidable');
+const { v4: uuidv4 } = require('uuid');
+const mime = require('mime');
 
-// Define the username and password to access the server
+// Define the tokens and port for the server
 const PORT = process.env.PORT || 8080
-const username = "admin";
-const password = "password";
+let tokens = []
 
 // Create the 'files' directory if it doesn't exist
 const filesDirectory = path.join(__dirname, 'files');
@@ -15,6 +16,24 @@ if (!fs.existsSync(filesDirectory)) {
   console.log("--------------------------------------------------------------------\nNo `files` folder was found in this dir, so I made you one :)\n--------------------------------------------------------------------");
   fs.mkdirSync(filesDirectory);
 }
+
+const configDirectory = path.join(__dirname, 'config.json');
+if (!fs.existsSync(configDirectory)) {
+  console.log("--------------------------------------------------------------------\nNo `config.json` file was found in this dir, so I made you one :)\n--------------------------------------------------------------------");
+  let configToSave = { 
+    username: "admin",
+    password: "password"
+  };
+  let data = JSON.stringify(configToSave);
+  fs.writeFileSync('config.json', data);
+}
+
+let config
+
+fs.readFile('config.json', (err, data) => {
+  if (err) throw err;
+  config = JSON.parse(data);
+});
 
 // Create the HTTP server
 const server = http.createServer(function (req, res) {
@@ -33,8 +52,8 @@ const server = http.createServer(function (req, res) {
   }
 
   const cookies = parseCookies(req);
-  const userCookie = cookies.username;
-  if (!userCookie || userCookie !== username) {
+  const userCookie = cookies.token;
+  if (!userCookie || !tokens.includes(userCookie)) {
     return serveUnauthorized(res);
   }
 
@@ -67,7 +86,8 @@ const server = http.createServer(function (req, res) {
         <body>
           <div class="file-explorer">
             <h1>File Server</h1>
-            <button onclick="document.cookie = 'username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'; window.location.reload();">Logout</button>
+            <button onclick="document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'; window.location.reload();">Logout</button>
+            <button onclick="document.getElementById('setting').showModal();">Server Settings</button>
                   <form id="uploadForm" enctype="multipart/form-data">
                   <input type="file" id="filetoupload" name="filetoupload"><br>
                   <button class="upload-button" type="button" onclick="handleUploadFormSubmission()">Upload</button>
@@ -76,7 +96,7 @@ const server = http.createServer(function (req, res) {
           
         `;
         files.forEach(function(file) {
-          fileHtml += '<li class="file-item"><a href="' + path.join(parsedUrl.pathname, file) + '">' + decodeURIComponent(file) + '</a>';
+          fileHtml += '<li class="file-item"><a href="' + path.join(parsedUrl.pathname, file) + '">' + decodeURIComponent(file).replace("%27", "'") + '</a>';
           fileHtml += `<br><button class="delete-button" onclick="handleDeleteFile('\\${path.join(parsedUrl.pathname, file)}')">Delete</button>`;
           fileHtml += `<form class="rename-form" action="/rename" method="post" onsubmit="handleRenameFormSubmission(this); return false;">
           <input type="hidden" name="current" value="${path.join(parsedUrl.pathname, file)}">
@@ -86,6 +106,18 @@ const server = http.createServer(function (req, res) {
         });
         fileHtml += ` </ul>
         </div>
+        <dialog id="setting" style="text-align: center;">
+        <h1>Settings</h1>
+        <form action="/updateSettings" method="post" onsubmit="saveSettings(this); return false;">
+      <label for="username">Username:</label>
+      <input type="text" id="username" name="username" value="${config['username']}">
+      <label for="password">Password:</label>
+      <input type="password" id="password" name="password" value="${config['password']}">
+      <input type="submit" value="Save">
+    </form>
+    <button onclick="document.getElementById('setting').close();">Close</button>
+    <p>File server is made by <a href="//awashcard0.pages.dev">Awashcard0</a></p>
+    </dialog>
         </body>
         <script>
         function handleRenameFormSubmission(form) {
@@ -129,7 +161,6 @@ const server = http.createServer(function (req, res) {
           };
           
           const params = 'name=' + encodeURIComponent(filename)
-          console.log(filename, params)
           xhr.send(params);
         }
         
@@ -159,6 +190,30 @@ const server = http.createServer(function (req, res) {
             };
           
             xhr.send(formData);
+          }
+
+          function saveSettings(form) {
+            const user = form.username.value;
+            const pass = form.password.value;
+
+            document.getElementById('setting').close();
+            const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/updateSettings', true);
+          xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+              if (xhr.status === 302) {
+                window.location.reload(); // Reload the page after successful deletion
+              } else {
+                setTimeout(() => { window.location.reload(); document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'; window.location.reload();}, 700);
+              }
+            }
+          };
+          
+          const params = 'username=' + encodeURIComponent(user) +
+                         '&password=' + encodeURIComponent(pass);
+
+          xhr.send(params);
           }
 </script>
 <style>
@@ -274,8 +329,13 @@ button:hover {
   // }
 
   // Serve the requested file
-  const fileStream = fs.createReadStream(filePath);
-  fileStream.pipe(res);
+  // const fileStream = fs.createReadStream(filePath);
+  // res.setHeader('Content-Disposition', 'attachment; filename=' + `${parsedUrl.pathname.replace("/", "")}`);
+  // fileStream.pipe(res);
+  // res.end()
+
+    res.writeHead(200, {'Content-Type': mime.getType(filePath)});
+    res.end(fs.readFileSync(filePath));
 });
 
 // Handle file uploads
@@ -294,7 +354,7 @@ server.on('request', function(req, res) {
       }
       // Move the uploaded file to the 'files' directory
       const oldPath = files.filetoupload.filepath;
-      const newPath = path.join(__dirname, 'files', encodeURIComponent(files.filetoupload.originalFilename));
+      const newPath = path.join(__dirname, 'files', encodeURIComponent(files.filetoupload.originalFilename).replace("'", "%27"));
 
       fs.copyFile(oldPath, newPath, function(err) {
         if (err) {
@@ -321,7 +381,7 @@ if (req.method === 'POST' && parsedUrl.pathname === '/delete') {
 
   const filename = params.get('name');
   const filePath = path.join(filesDirectory, filename);
-  console.log(filename)
+
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
     res.writeHead(302, { 'Location': '/' });
@@ -358,6 +418,24 @@ if (req.method === 'POST' && parsedUrl.pathname === '/rename') {
   return;
 }
 
+// Handle settings updateing
+if (req.method === 'POST' && parsedUrl.pathname === '/updateSettings') {
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+  });
+  req.on('end', () => {
+    const params = new URLSearchParams(body);
+    config["username"] = params.get('username')
+    config["password"] = params.get('password')
+
+    fs.writeFileSync('config.json', JSON.stringify(config));
+
+      res.writeHead(302, { 'Location': '/' });
+      res.end();
+  });
+  return;
+}
 
 });
 
@@ -412,8 +490,10 @@ function handleLogin(req, res) {
     const params = new URLSearchParams(body);
     const Gotusername = params.get('username');
     const Gotpassword = params.get('password');
-    if (Gotusername === username && Gotpassword === password) {
-      res.setHeader('Set-Cookie', `username=${Gotusername}`);
+    const userToken = uuidv4()
+    if (Gotusername === config["username"] && Gotpassword === config["password"]) {
+      tokens.push(userToken);
+      res.setHeader('Set-Cookie', `token=${userToken}`);
       res.writeHead(302, {'Location': '/'});
       res.end();
     } else {

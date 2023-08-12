@@ -25,7 +25,9 @@
     "formidable": "^2.1.1",
     "fs": "^0.0.1-security",
     "http": "^0.0.1-security",
+    "mime": "^3.0.0",
     "path": "^0.12.7",
-    "querystring": "^0.2.1"
+    "querystring": "^0.2.1",
+    "uuid": "^9.0.0"
   }
 }
