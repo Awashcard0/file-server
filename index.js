@@ -221,17 +221,17 @@ const server = http.createServer(function (req, res) {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 0;
-  background: linear-gradient(to right, #f06, #9f6);
+  background: linear-gradient(to right, #4151ff, #67ab45);
 }
 
 .file-explorer {
-  background-color: #ffffff;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  color: rgb(255 255 255);
+  background: rgb(0 0 0 / 80%);
+  border: 1px solid #373737;
+  border-radius: 10px;
   width: 80%;
   margin: 50px auto;
   padding: 20px;
-  background: rgba(255, 255, 255, 0.8);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   animation: slide-in 0.5s forwards;
 }
