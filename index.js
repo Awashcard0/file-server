@@ -342,6 +342,12 @@ button:hover {
 server.on('request', function(req, res) {
   const parsedUrl = url.parse(req.url, true);
 
+  const cookies = parseCookies(req);
+  const userCookie = cookies.token;
+  if (!userCookie || !tokens.includes(userCookie)) {
+    return serveUnauthorized(res);
+  }
+
   if (req.method.toLowerCase() === 'post' && req.url === '/upload') {
     // Parse the form data
     const form = new formidable.IncomingForm();
